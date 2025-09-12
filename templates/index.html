@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Решение задачи коммивояжера с временными окнами</title>
+
+    <!-- Bootstrap для улучшенного стиля -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Leaflet CSS для карты -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
+    <!-- Стиль карты и элементов -->
+    <style>
+    :root {
+        --main-font: 'Arial', sans-serif;
+        --main-radius: 10px;
+        --main-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        --main-font-size: 1.3rem;
+        --header-font-size: 1.6rem;
+        --header-bg: #2C7A7B; /* глубокий бирюзовый */
+        --accent-color: #319795; /* светлый акцент бирюзовый */
+        --button-bg: #2B6CB0; /* насыщенно-синий */
+        --button-bg-alt: #805AD5; /* фиолетово-синий */
+    }
+
+
+    /* Общие стили */
+    body {
+        font-family: var(--main-font);
+    }
+
+    .container-fluid {
+        padding: 0 15px;
+    }
+
+    .row {
+        margin-left: -15px;
+        margin-right: -15px;
+    }
+
+    .main-header {
+        margin: 15px 0;
+    }
+
+    /* Карта */
+    #map {
+        height: calc(100vh - 80px);
+        box-shadow: var(--main-shadow);
+        border-radius: var(--main-radius);
+        margin-bottom: 15px;
+    }
+
+    /* Карточки */
+    .card {
+        margin-bottom: 15px;
+        box-shadow: var(--main-shadow);
+    }
+
+    .card-header {
+        font-weight: 600;
+        font-size: var(--header-font-size);
+    }
+    .card-header {
+        background-color: var(--header-bg) !important;
+        color: white;
+        border-bottom: 1px solid #e1e1e1;
+    }
+
+
+    /* Формы и кнопки */
+    .form-label,
+    .form-control,
+    .form-select,
+    .input-group-text,
+    .btn,
+    .time-window,
+    .legend,
+    .alert,
+    #step-info,
+    #savedRoutes,
+    .progress-bar {
+        font-size: var(--main-font-size) !important;
+    }
+
+    /* Кнопки */
+    .btn {
+        padding: 0.5rem 1rem;
+    }
+    .btn-group-vertical {
+        width: 100%;
+    }
+    .btn-group-vertical .btn {
+        margin-bottom: 5px;
+    }
+
+    /* Временные окна */
+    .time-window-list {
+        max-height: 250px;
+        overflow-y: auto;
+        margin-bottom: 15px;
+    }
+
+    /* Легенда */
+    .legend {
+        padding: 10px;
+        background: #fff;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        margin-top: 10px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .legend-color {
+        width: 20px;
+        height: 10px;
+        margin-right: 5px;
+    }
+
+    /* Прогресс-бар */
+    .progress {
+        height: 1.5rem;
+    }
+    .progress-bar {
+        line-height: 1.5rem;
+    }
+
+    .btn-primary {
+        background-color: var(--button-bg);
+        border-color: var(--button-bg);
+    }
+    .btn-primary:hover {
+        background-color: #2C5282;
+        border-color: #2C5282;
+    }
+
+    .btn-success {
+        background-color: #38A169;
+        border-color: #38A169;
+    }
+    .btn-success:hover {
+        background-color: #2F855A;
+        border-color: #2F855A;
+    }
+
+    .btn-info {
+        background-color: var(--accent-color);
+        border-color: var(--accent-color);
+        color: white;
+    }
+    .btn-info:hover {
+        background-color: #2C7A7B;
+        border-color: #2C7A7B;
+        color: white;
+    }
+    .btn-warning {
+        background-color: #D6B83B;
+        border-color: #D6B83B;
+        color: white;
+    }
+    .btn-warning:hover {
+        background-color: #C1A52D;
+        border-color: #C1A52D;
+        color: white;
+    }
+    </style>
+
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 class="text-center main-header"></h1>
+
+        <div class="row">
+            <!-- Левая колонка - элементы управления -->
+            <div class="col-md-4">
+                <!-- Карточка с формой -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        Параметры маршрута
+                    </div>
+                    <div class="card-body">
+                        <form id="coordinatesForm">
+                            <input type="hidden" id="coordinates" name="coordinates">
+                            <div class="mb-3">
+                                <label for="speed" class="form-label">Скорость (км/ч):</label>
+                                <input type="number" class="form-control" id="speed" name="speed" value="60" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="start_time" class="form-label">Стартовое время:</label>
+                                <input type="time" class="form-control" id="start_time" name="start_time" value="08:00" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Рассчитать маршрут</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Временные окна -->
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        Временные окна
+                    </div>
+                    <div class="card-body time-window-list">
+                        <div id="time-windows-list"></div>
+                    </div>
+                </div>
+
+                <!-- Панель управления пошаговым отображением маршрута -->
+                <div id="step-controls" class="card d-none">
+                    <div class="card-header bg-success text-white">
+                        Пошаговый просмотр маршрута
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <button id="prevStep" class="btn btn-secondary">Предыдущий шаг</button>
+                            <button id="nextStep" class="btn btn-success">Следующий шаг</button>
+                        </div>
+                        <div class="progress mb-2">
+                            <div id="step-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="step-info" class="alert alert-info">
+                            Шаг 0 из 0: Информация о шаге
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Карточка для сохранения и загрузки -->
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        Сохранение и загрузка маршрутов
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group mb-2">
+                            <input type="text" id="routeName" class="form-control" placeholder="Название маршрута">
+                            <button id="saveRoute" class="btn btn-success">Сохранить</button>
+                        </div>
+                        <select id="savedRoutes" class="form-select mb-2">
+                            <option selected>Выберите сохраненный маршрут</option>
+                        </select>
+                        <div class="btn-group-vertical">
+                            <button id="loadRoute" class="btn btn-info">Загрузить маршрут</button>
+                            <button id="clearSavedRoutes" class="btn btn-warning">Очистить сохраненные маршруты</button>
+                            <button id="clearMap" class="btn btn-danger">Очистить карту</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Легенда карты -->
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: green;"></div>
+                        <span>Допустимый переход</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: red;"></div>
+                        <span>Недопустимый переход (нарушение временного окна)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка - карта -->
+            <div class="col-md-8">
+                <!-- Карта -->
+                <div id="map"></div>
+
+                <!-- Информация о маршруте -->
+                <div id="route-info" class="alert alert-success d-none">
+                    <h5 id="algorithm-info">Алгоритм: </h5>
+                    <p id="distance-info">Общее расстояние: </p>
+                    <p id="problem-info"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключение библиотек JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    // Инициализация карты
+    var map = L.map('map').setView([51.66, 39.17], 13); // Центрируем на Воронеже
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var coordinates = [];
+    var markers = [];
+    var routingControl;
+    var markerIndex = 1;
+    var routeData = null;
+    var currentStepIndex = 0;
+    var stepRoutingControls = []; // Массив для хранения всех созданных контролов маршрутизации
+    var problemMarkers = []; // Маркеры проблемных точек
+
+    // Обработчик клика по карте
+    map.on('click', function(e) {
+        var index = markerIndex; // Запоминаем индекс
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+
+        // Добавление маркера на карту
+        var marker = L.marker(e.latlng).addTo(map)
+            .bindPopup("Точка " + index)
+            .openPopup();
+
+        markers.push(marker);
+        coordinates.push([lat, lng]);
+        document.getElementById('coordinates').value = JSON.stringify(coordinates);
+
+        // Добавляем поле ввода для временного окна
+        var timeWindowsList = document.getElementById('time-windows-list');
+        var timeWindowDiv = document.createElement('div');
+        timeWindowDiv.className = "input-group mt-2";
+        timeWindowDiv.innerHTML = `
+            <span class="input-group-text">Точка ${index}:</span>
+            <input type="time" class="form-control time-window" placeholder="Начало" value="08:00" data-index="${index}" style="max-width: 120px;">
+            <input type="time" class="form-control time-window" placeholder="Конец" value="20:00" data-index="${index}" style="max-width: 120px;">
+            <button class="btn btn-danger btn-sm" onclick="removeMarker(${index})">X</button>
+        `;
+        timeWindowsList.appendChild(timeWindowDiv);
+
+        markerIndex++; // Увеличиваем индекс для следующего маркера
+    });
+
+    // Функция для очистки всех контролов маршрута
+    function clearStepRoutingControls() {
+        for (var i = 0; i < stepRoutingControls.length; i++) {
+            map.removeControl(stepRoutingControls[i]);
+        }
+        stepRoutingControls = [];
+
+        // Удалить возможные одиночные маркеры
+        if (showRouteStep.lastMarkers) {
+                        showRouteStep.lastMarkers.forEach(m => map.removeLayer(m));
+            showRouteStep.lastMarkers = [];
+        }
+        // Удалить маркеры проблемных точек
+        problemMarkers.forEach(function(m) { map.removeLayer(m); });
+        problemMarkers = [];
+    }
+
+    // Полная очистка карты и сброс всех данных
+    function clearMap() {
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+        coordinates = [];
+        document.getElementById('coordinates').value = '';
+
+        if (routingControl) {
+            map.removeControl(routingControl);
+            routingControl = null;
+        }
+        clearStepRoutingControls();
+
+        // Очистка списка временных окон
+        document.getElementById('time-windows-list').innerHTML = '';
+
+        // Очистка поля ввода названия маршрута
+        document.getElementById('routeName').value = '';
+
+        markerIndex = 1;
+
+        // Скрываем панель шагов и информацию о маршруте
+        document.getElementById('step-controls').classList.add('d-none');
+        document.getElementById('route-info').classList.add('d-none');
+
+        // Сбрасываем данные маршрута
+        routeData = null;
+        currentStepIndex = 0;
+    }
+
+    document.getElementById('clearMap').onclick = clearMap;
+
+    // Функция удаления маркера и временного окна
+    function removeMarker(index) {
+        if (index < 1 || index > markers.length) return;
+
+        map.removeLayer(markers[index - 1]);
+        markers.splice(index - 1, 1);
+        coordinates.splice(index - 1, 1);
+        document.getElementById('coordinates').value = JSON.stringify(coordinates);
+
+        // Удаляем поле временного окна
+        var timeWindowsList = document.getElementById('time-windows-list');
+        timeWindowsList.removeChild(timeWindowsList.children[index - 1]);
+
+        // Обновляем индексы оставшихся маркеров
+        markerIndex--;
+        for (var i = 0; i < markers.length; i++) {
+            markers[i].bindPopup("Точка " + (i + 1)).openPopup();
+            timeWindowsList.children[i].querySelector(".input-group-text").textContent = "Точка " + (i + 1) + ":";
+            timeWindowsList.children[i].querySelectorAll("input").forEach(input => input.dataset.index = i + 1);
+        }
+    }
+
+    // Обработка отправки формы
+    document.getElementById('coordinatesForm').onsubmit = function(event) {
+        event.preventDefault();
+
+        var formData = new FormData(this);
+        formData.append("coordinates", JSON.stringify(coordinates));
+
+        // Сбор временных окон из списка
+        var timeWindows = [];
+        document.querySelectorAll("#time-windows-list .input-group").forEach((group, index) => {
+            var start = group.querySelector("input:nth-child(2)").value;
+            var end = group.querySelector("input:nth-child(3)").value;
+            timeWindows.push([start, end]);
+        });
+
+        formData.append("time_windows", JSON.stringify(timeWindows));
+
+        // Отправка запроса на сервер
+        fetch('/solve', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearStepRoutingControls();
+
+            routeData = data;
+            document.getElementById('step-controls').classList.remove('d-none');
+
+            // Инфоблок о маршруте
+            document.getElementById('route-info').classList.remove('d-none');
+            document.getElementById('algorithm-info').innerText = "Алгоритм: " + data.algorithm;
+            document.getElementById('distance-info').innerText = "Общее расстояние: " + data.cost.toFixed(2) + " км";
+            document.getElementById('problem-info').innerHTML = "";
+
+            // Если есть проблемные точки
+            if (data.problem_points && data.problem_points.length > 0) {
+                var msg = 'В точку(и) <b>' + data.problem_points.map(x => x + 1).join(', ') +
+                    '</b> невозможно попасть в эти временные окна. Измените временные окна для этих точек!';
+                document.getElementById('problem-info').innerHTML = msg;
+
+                // Добавляем красные маркеры для проблемных точек
+                data.problem_points.forEach(idx => {
+                    var idxInRoute = data.route.indexOf(idx);
+                    var coord = idxInRoute !== -1 ? data.route_coordinates[idxInRoute] : null;
+                    if (coord) {
+                        var marker = L.marker(coord, {
+                            icon: L.icon({
+                                iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34]
+                            })
+                        }).addTo(map).bindPopup("Проблемная точка " + (idx + 1));
+                        problemMarkers.push(marker);
+                    }
+                });
+            }
+
+            // Показываем маршрут по сегментам (по дорогам), окрашивая каждый сегмент
+            for (let i = 0; i < data.route_coordinates.length - 1; i++) {
+                let from = L.latLng(data.route_coordinates[i][0], data.route_coordinates[i][1]);
+                let to = L.latLng(data.route_coordinates[i + 1][0], data.route_coordinates[i + 1][1]);
+                let color = data.segments_valid[i] ? 'green' : 'red';
+
+                let control = L.Routing.control({
+            waypoints: [L.latLng(data.route_coordinates[i]), L.latLng(data.route_coordinates[i+1])],
+            lineOptions: {styles: [{color: color, weight: 7, opacity: 0.8}]},
+                    routeWhileDragging: false,
+                    addWaypoints: false,
+                    draggableWaypoints: false,
+                    fitSelectedRoutes: false,
+                    show: false,
+                    createMarker: function () { return null; }
+                }).addTo(map);
+                stepRoutingControls.push(control);
+            }
+
+            // Показываем информацию о проблемных точках
+            if (data.problem_points && data.problem_points.length > 0) {
+                data.problem_points.forEach(idx => {
+                    let marker = L.marker(data.route_coordinates[idx], {
+                        icon: L.icon({
+                            iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+                            iconSize: [25, 41]
+                        })
+                    }).addTo(map).bindPopup(`Нарушение в точке ${idx+1}`);
+                    problemMarkers.push(marker);
+                });
+            }
+            // Переключаемся на первый шаг
+            currentStepIndex = 0;
+            showRouteStep(0);
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Произошла ошибка при расчете маршрута');
+        });
+    };
+
+    // Основная функция пошагового показа маршрута (по дорогам)
+    function showRouteStep(stepIndex) {
+        if (!routeData || !routeData.route_coordinates) return;
+
+        // Ограничиваем индекс шага
+        if (stepIndex < 0) stepIndex = 0;
+        if (stepIndex > routeData.route_coordinates.length - 2)
+            stepIndex = routeData.route_coordinates.length - 2;
+
+        currentStepIndex = stepIndex;
+
+        // Отмечаем стартовую и текущую точки маркерами
+        if (typeof showRouteStep.lastMarkers === "undefined") showRouteStep.lastMarkers = [];
+        showRouteStep.lastMarkers.forEach(m => map.removeLayer(m));
+        showRouteStep.lastMarkers = [];
+
+        var fromIdx = routeData.route[stepIndex];
+        var toIdx = routeData.route[stepIndex + 1];
+        var fromTime = routeData.times[stepIndex];
+        var toTime = routeData.times[stepIndex + 1];
+        var isValid = routeData.segments_valid[stepIndex];
+
+        // Маркер старта текущего шага (зеленый)
+        var fromMarker = L.marker(routeData.route_coordinates[stepIndex], {
+            icon: L.icon({
+                iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34]
+            })
+        }).bindPopup(`<b>Точка ${fromIdx + 1}</b><br>Время: ${fromTime}`).addTo(map);
+        showRouteStep.lastMarkers.push(fromMarker);
+
+        // Маркер конца текущего шага (красный если не валидный, иначе синий)
+        var iconUrl = isValid ?
+            "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png" :
+            "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png";
+
+        var toMarker = L.marker(routeData.route_coordinates[stepIndex + 1], {
+            icon: L.icon({
+                iconUrl: iconUrl,
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34]
+            })
+        }).bindPopup(`<b>Точка ${toIdx + 1}</b><br>Время: ${toTime}`).addTo(map);
+        showRouteStep.lastMarkers.push(toMarker);
+
+        // Автоматически открываем окно конечной точки, если есть проблема
+        if (!isValid) {
+            toMarker.openPopup();
+        }
+
+        // Обновляем информацию о текущем шаге
+        var stepInfo = document.getElementById('step-info');
+        var totalSteps = routeData.route_coordinates.length - 1;
+
+        // Информация о валидности шага
+        var validityInfo = isValid ?
+            `<span class="badge bg-success">Допустимый шаг</span>` :
+            `<span class="badge bg-danger">Недопустимый шаг - нарушено временное окно!</span>`;
+
+        stepInfo.innerHTML = `
+            <b>Шаг ${stepIndex + 1} из ${totalSteps}:</b><br>
+            ${validityInfo}<br>
+            Из <b>точки ${fromIdx + 1}</b> (${fromTime})<br>
+            в <b>точку ${toIdx + 1}</b> (${toTime})<br>
+        `;
+
+        // Обновляем прогресс-бар
+        var progressPercent = ((stepIndex + 1) / totalSteps) * 100;
+        document.getElementById('step-progress').style.width = progressPercent + '%';
+        document.getElementById('step-progress').innerText = `${stepIndex + 1} / ${totalSteps}`;
+
+        // Делаем зум на текущий сегмент
+        var bounds = L.latLngBounds([
+            routeData.route_coordinates[stepIndex],
+            routeData.route_coordinates[stepIndex + 1]
+        ]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    // Кнопки "Следующий шаг" и "Предыдущий шаг"
+    document.getElementById('nextStep').onclick = function() {
+        if (!routeData) return;
+        if (currentStepIndex < routeData.route_coordinates.length - 2) {
+            showRouteStep(currentStepIndex + 1);
+        }
+    };
+
+    document.getElementById('prevStep').onclick = function() {
+        if (!routeData) return;
+        if (currentStepIndex > 0) {
+            showRouteStep(currentStepIndex - 1);
+        }
+    };
+
+    // Функция сохранения маршрута
+    function saveRoute() {
+        var routeName = document.getElementById('routeName').value;
+        if (!routeName) {
+            alert('Пожалуйста, введите название маршрута');
+            return;
+        }
+        var routeDataForSave = {
+            coordinates: coordinates,
+            timeWindows: getTimeWindows()
+        };
+        localStorage.setItem('route_' + routeName, JSON.stringify(routeDataForSave));
+        updateSavedRoutesList();
+    }
+
+    // Функция загрузки маршрута
+        function loadRoute() {
+        var selectedRoute = document.getElementById('savedRoutes').value;
+        if (selectedRoute === 'Выберите сохраненный маршрут') {
+            alert('Пожалуйста, выберите маршрут для загрузки');
+            return;
+        }
+        var loadedRouteData = JSON.parse(localStorage.getItem(selectedRoute));
+        if (loadedRouteData) {
+            clearMap();
+            coordinates = loadedRouteData.coordinates;
+            coordinates.forEach((coord, index) => {
+                var marker = L.marker(coord).addTo(map)
+                    .bindPopup("Точка " + (index + 1))
+                    .openPopup();
+                markers.push(marker);
+            });
+            document.getElementById('coordinates').value = JSON.stringify(coordinates);
+            setTimeWindows(loadedRouteData.timeWindows);
+
+            // Подгоняем карту под все точки
+            if (coordinates.length > 1) {
+                map.fitBounds(L.latLngBounds(coordinates.map(c => L.latLng(c[0], c[1]))));
+            } else if (coordinates.length === 1) {
+                map.setView(coordinates[0], 13);
+            }
+        }
+    }
+
+    // Функция обновления списка сохраненных маршрутов
+    function updateSavedRoutesList() {
+        var select = document.getElementById('savedRoutes');
+        select.innerHTML = '<option selected>Выберите сохраненный маршрут</option>';
+        var routeCount = 0;
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key.startsWith('route_')) {
+                var option = document.createElement('option');
+                option.value = key;
+                option.textContent = key.substring(6);
+                select.appendChild(option);
+                routeCount++;
+            }
+        }
+        if (routeCount === 0) {
+            var option = document.createElement('option');
+            option.disabled = true;
+            option.textContent = 'Нет сохраненных маршрутов';
+            select.appendChild(option);
+        }
+    }
+
+    // Функция очистки сохраненных маршрутов
+    function clearSavedRoutes() {
+        if (confirm('Вы уверены, что хотите удалить все сохраненные маршруты?')) {
+            for (var i = localStorage.length - 1; i >= 0; i--) {
+                var key = localStorage.key(i);
+                if (key.startsWith('route_')) {
+                    localStorage.removeItem(key);
+                }
+            }
+            updateSavedRoutesList();
+            alert('Все сохраненные маршруты были удалены.');
+        }
+    }
+
+    // Функция получения временных окон
+    function getTimeWindows() {
+        var timeWindows = [];
+        document.querySelectorAll("#time-windows-list .input-group").forEach((group) => {
+            var start = group.querySelector("input:nth-child(2)").value;
+            var end = group.querySelector("input:nth-child(3)").value;
+            timeWindows.push([start, end]);
+        });
+        return timeWindows;
+    }
+
+    // Функция установки временных окон
+    function setTimeWindows(timeWindows) {
+        var timeWindowsList = document.getElementById('time-windows-list');
+        timeWindowsList.innerHTML = '';
+        timeWindows.forEach((window, index) => {
+            var timeWindowDiv = document.createElement('div');
+            timeWindowDiv.className = "input-group mt-2";
+            timeWindowDiv.innerHTML = `
+                <span class="input-group-text">Точка ${index + 1}:</span>
+                <input type="time" class="form-control time-window" value="${window[0]}" style="max-width: 120px;">
+                <input type="time" class="form-control time-window" value="${window[1]}" style="max-width: 120px;">
+                <button class="btn btn-danger btn-sm" onclick="removeMarker(${index + 1})">X</button>
+            `;
+            timeWindowsList.appendChild(timeWindowDiv);
+        });
+    }
+
+    // Добавление обработчиков событий
+    document.getElementById('saveRoute').addEventListener('click', saveRoute);
+    document.getElementById('loadRoute').addEventListener('click', loadRoute);
+    document.getElementById('clearSavedRoutes').addEventListener('click', clearSavedRoutes);
+
+    // Инициализация списка сохраненных маршрутов
+    updateSavedRoutesList();
+</script>
+</body>
+</html>
+
+
+
