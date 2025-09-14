@@ -30,8 +30,8 @@
 1. Клонируйте репозиторий:
 ```
 
-git clone https://github.com/yourusername/TSP-with-Time-Windows-Solver.git
-cd TSP-with-Time-Windows-Solver
+git clone https://github.com/IlyaKulishkin/Route-Optimization-with-Time-Windows
+cd Route-Optimization-with-Time-Windows
 
 ```
 2. Создайте и активируйте виртуальное окружение (опционально):
