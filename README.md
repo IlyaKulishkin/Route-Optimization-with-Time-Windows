@@ -10,6 +10,8 @@
 
 Проект подходит для изучения алгоритмов маршрутизации, оптимизации и работы с API карт.
 
+<img width="1917" height="1003" alt="image" src="https://github.com/user-attachments/assets/7f9328e9-5eb1-4ccb-9d06-31b241cdbaba" />
+
 ---
 
 ## Особенности
